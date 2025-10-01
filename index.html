@@ -425,7 +425,8 @@
           setStatus("Preview ready. Save it to Drive or try another idea.");
         } catch (error) {
           console.error(error);
-          setStatus("Something went wrong. Check the console for details.");
+          const message = error instanceof Error ? error.message : String(error);
+          setStatus(`Error: ${message}`);
         } finally {
           setBusy(generateButton, false);
         }
