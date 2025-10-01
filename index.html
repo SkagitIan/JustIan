@@ -333,11 +333,13 @@
     </section>
   </main>
 
+  <script src="config.js"></script>
   <script>
     (function () {
       const PASSWORD = "Appertivo2025!";
-      const REPLICATE_TOKEN = "r8_your_replicate_token";
-      const GOOGLE_CLIENT_ID = "your-client-id.apps.googleusercontent.com";
+      const CONFIG = window.APP_CONFIG || { replicateToken: "", googleClientId: "" };
+      const REPLICATE_TOKEN = CONFIG.replicateToken || "";
+      const GOOGLE_CLIENT_ID = CONFIG.googleClientId || "";
       const DRIVE_FOLDER_ID = "";
       const PROMPT_LIBRARY = [
         "Hyper-detailed digital painting of a neon-lit mech warrior emerging from ocean mist, volumetric lighting, cinematic",
@@ -390,8 +392,8 @@
 
       generateButton.addEventListener("click", async function () {
         const prompt = promptInput.value.trim();
-        if (!REPLICATE_TOKEN || REPLICATE_TOKEN.includes("your_replicate_token")) {
-          setStatus("Replicate token is missing. Update the script with your API token.");
+        if (!REPLICATE_TOKEN) {
+          setStatus("Replicate token is missing. Check your deployment secrets.");
           return;
         }
         if (!prompt) {
@@ -505,8 +507,8 @@
           return driveAccessToken;
         }
 
-        if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("your-client-id")) {
-          throw new Error("Google OAuth client ID is missing in the script.");
+        if (!GOOGLE_CLIENT_ID) {
+          throw new Error("Google OAuth client ID is missing. Check your deployment secrets.");
         }
 
         if (!window.google || !google.accounts || !google.accounts.oauth2) {
