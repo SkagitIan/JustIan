@@ -48,6 +48,12 @@
       font-size: 1rem;
     }
 
+    input[readonly] {
+      background: #f0f0f0;
+      color: #555;
+      cursor: not-allowed;
+    }
+
     textarea {
       min-height: 120px;
       resize: vertical;
@@ -129,6 +135,7 @@
     }
   </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="config.js" defer></script>
 </head>
 <body>
   <div id="login-screen">
@@ -207,6 +214,8 @@
       if (savedFolderId) driveFolderInput.value = savedFolderId;
       if (savedPrompt) promptInput.value = savedPrompt;
 
+      applyConfig();
+
       loginForm.addEventListener("submit", function (event) {
         event.preventDefault();
         if (passwordInput.value === PASSWORD) {
@@ -220,10 +229,16 @@
       });
 
       replicateTokenInput.addEventListener("change", function () {
+        if (replicateTokenInput.dataset.locked === "true") {
+          return;
+        }
         localStorage.setItem("replicateToken", replicateTokenInput.value.trim());
       });
 
       googleClientInput.addEventListener("change", function () {
+        if (googleClientInput.dataset.locked === "true") {
+          return;
+        }
         localStorage.setItem("googleClientId", googleClientInput.value.trim());
       });
 
@@ -433,6 +448,37 @@
           };
           reader.readAsDataURL(blob);
         });
+      }
+
+      function applyConfig() {
+        if (!window.APP_CONFIG) {
+          return;
+        }
+
+        lockInput(
+          replicateTokenInput,
+          "replicateToken",
+          window.APP_CONFIG.replicateToken
+        );
+        lockInput(
+          googleClientInput,
+          "googleClientId",
+          window.APP_CONFIG.googleClientId
+        );
+      }
+
+      function lockInput(input, storageKey, value) {
+        if (!value) {
+          return;
+        }
+
+        input.value = value;
+        input.readOnly = true;
+        input.dataset.locked = "true";
+
+        if (storageKey) {
+          localStorage.removeItem(storageKey);
+        }
       }
     })();
   </script>
