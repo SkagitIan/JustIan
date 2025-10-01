@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Flux Image Generator</title>
+  <script>
+    window.REPLICATE_API_KEY = "{{ REPLICATE_API_KEY }}";
+  </script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -197,12 +200,23 @@
       let tokenClient = null;
       let driveAccessToken = null;
 
+      const envReplicateToken =
+        typeof window !== "undefined" &&
+        typeof window.REPLICATE_API_KEY === "string" &&
+        window.REPLICATE_API_KEY &&
+        !window.REPLICATE_API_KEY.includes("{{")
+          ? window.REPLICATE_API_KEY.trim()
+          : "";
       const savedReplicateToken = localStorage.getItem("replicateToken");
       const savedClientId = localStorage.getItem("googleClientId");
       const savedFolderId = localStorage.getItem("driveFolderId");
       const savedPrompt = localStorage.getItem("lastPrompt");
 
-      if (savedReplicateToken) replicateTokenInput.value = savedReplicateToken;
+      if (envReplicateToken) {
+        replicateTokenInput.value = envReplicateToken;
+      } else if (savedReplicateToken) {
+        replicateTokenInput.value = savedReplicateToken;
+      }
       if (savedClientId) googleClientInput.value = savedClientId;
       if (savedFolderId) driveFolderInput.value = savedFolderId;
       if (savedPrompt) promptInput.value = savedPrompt;
