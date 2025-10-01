@@ -1,1 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flux Image Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f4f4;
+      color: #222;
+    }
 
+    header {
+      background: #1f3c88;
+      color: #fff;
+      padding: 1rem 2rem;
+      text-align: center;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    label {
+      display: block;
+      margin: 0.5rem 0 0.25rem;
+      font-weight: bold;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.65rem 1.5rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #1f3c88;
+      color: #fff;
+    }
+
+    button.secondary {
+      background: #555;
+      margin-left: 0.5rem;
+    }
+
+    #status {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: 4px;
+      background: #eef3ff;
+      color: #1f3c88;
+      min-height: 1.5rem;
+    }
+
+    #gallery {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      margin-top: 1.5rem;
+    }
+
+    #gallery img {
+      width: 100%;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    #login-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    #login-box {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+
+    #login-box h1 {
+      margin-bottom: 1rem;
+    }
+
+    #login-error {
+      color: #b00020;
+      margin-top: 0.75rem;
+      min-height: 1.5rem;
+    }
+  </style>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <div id="login-screen">
+    <div id="login-box">
+      <h1>Secure Access</h1>
+      <form id="login-form">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" />
+        <button type="submit">Enter</button>
+      </form>
+      <div id="login-error"></div>
+    </div>
+  </div>
+
+  <header>
+    <h2>Flux Colossus Image Generator</h2>
+  </header>
+
+  <main id="app" class="hidden">
+    <section id="configuration">
+      <h3>Configuration</h3>
+      <label for="replicate-token">Replicate API Token</label>
+      <input id="replicate-token" type="text" placeholder="r8_..." />
+
+      <label for="google-client-id">Google OAuth Client ID</label>
+      <input id="google-client-id" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+
+      <label for="drive-folder-id">Google Drive Folder ID (optional)</label>
+      <input id="drive-folder-id" type="text" placeholder="Leave blank to save to My Drive" />
+
+      <button id="authorize-drive" type="button">Authorize Google Drive</button>
+      <button id="sign-out-drive" type="button" class="secondary">Sign out</button>
+    </section>
+
+    <section id="prompt-section">
+      <h3>Prompt</h3>
+      <textarea id="prompt"></textarea>
+      <button id="generate" type="button">Generate Image</button>
+    </section>
+
+    <div id="status"></div>
+    <section id="gallery"></section>
+  </main>
+
+  <script>
+    (function () {
+      const PASSWORD = "Appertivo2025!";
+      const loginForm = document.getElementById("login-form");
+      const passwordInput = document.getElementById("password");
+      const loginError = document.getElementById("login-error");
+      const loginScreen = document.getElementById("login-screen");
+      const app = document.getElementById("app");
+
+      const replicateTokenInput = document.getElementById("replicate-token");
+      const googleClientInput = document.getElementById("google-client-id");
+      const driveFolderInput = document.getElementById("drive-folder-id");
+      const authorizeButton = document.getElementById("authorize-drive");
+      const signOutButton = document.getElementById("sign-out-drive");
+      const promptInput = document.getElementById("prompt");
+      const generateButton = document.getElementById("generate");
+      const statusBox = document.getElementById("status");
+      const gallery = document.getElementById("gallery");
+
+      const MODEL_VERSION = "13f8afae9c06740b24e2d22a0fd7b4889c7381f72b49ce9cefc5fff34bdf51e2";
+
+      let tokenClient = null;
+      let driveAccessToken = null;
+
+      const savedReplicateToken = localStorage.getItem("replicateToken");
+      const savedClientId = localStorage.getItem("googleClientId");
+      const savedFolderId = localStorage.getItem("driveFolderId");
+      const savedPrompt = localStorage.getItem("lastPrompt");
+
+      if (savedReplicateToken) replicateTokenInput.value = savedReplicateToken;
+      if (savedClientId) googleClientInput.value = savedClientId;
+      if (savedFolderId) driveFolderInput.value = savedFolderId;
+      if (savedPrompt) promptInput.value = savedPrompt;
+
+      loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (passwordInput.value === PASSWORD) {
+          loginScreen.classList.add("hidden");
+          app.classList.remove("hidden");
+          loginError.textContent = "";
+        } else {
+          loginError.textContent = "Incorrect password.";
+        }
+        passwordInput.value = "";
+      });
+
+      replicateTokenInput.addEventListener("change", function () {
+        localStorage.setItem("replicateToken", replicateTokenInput.value.trim());
+      });
+
+      googleClientInput.addEventListener("change", function () {
+        localStorage.setItem("googleClientId", googleClientInput.value.trim());
+      });
+
+      driveFolderInput.addEventListener("change", function () {
+        localStorage.setItem("driveFolderId", driveFolderInput.value.trim());
+      });
+
+      promptInput.addEventListener("input", function () {
+        localStorage.setItem("lastPrompt", promptInput.value);
+      });
+
+      authorizeButton.addEventListener("click", async function () {
+        const clientId = googleClientInput.value.trim();
+        if (!clientId) {
+          setStatus("Enter your Google OAuth client ID first.");
+          return;
+        }
+        if (!window.google || !google.accounts || !google.accounts.oauth2) {
+          setStatus("Google auth script not ready yet. Please wait a moment and try again.");
+          return;
+        }
+        if (!tokenClient) {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: "https://www.googleapis.com/auth/drive.file",
+            callback: function (tokenResponse) {
+              driveAccessToken = tokenResponse.access_token;
+              setStatus("Google Drive access granted.");
+            },
+          });
+        }
+        tokenClient.requestAccessToken({ prompt: "consent" });
+      });
+
+      signOutButton.addEventListener("click", function () {
+        driveAccessToken = null;
+        if (tokenClient && google && google.accounts && google.accounts.oauth2) {
+          google.accounts.oauth2.revoke(googleClientInput.value.trim(), function () {
+            setStatus("Google Drive access revoked.");
+          });
+        } else {
+          setStatus("Google Drive access token cleared.");
+        }
+      });
+
+      generateButton.addEventListener("click", async function () {
+        const prompt = promptInput.value.trim();
+        const replicateToken = replicateTokenInput.value.trim();
+        if (!replicateToken) {
+          setStatus("Enter your Replicate API token.");
+          return;
+        }
+        if (!prompt) {
+          setStatus("Enter a prompt to generate images.");
+          return;
+        }
+
+        setStatus("Sending prompt to Replicate...");
+        try {
+          const prediction = await createPrediction(replicateToken, prompt);
+          if (!prediction) {
+            setStatus("Could not start prediction.");
+            return;
+          }
+          const outputUrls = await waitForPrediction(replicateToken, prediction);
+          if (!outputUrls || !outputUrls.length) {
+            setStatus("No images were returned.");
+            return;
+          }
+          setStatus(`Received ${outputUrls.length} image(s). Saving to Google Drive...`);
+          gallery.innerHTML = "";
+          for (let i = 0; i < outputUrls.length; i += 1) {
+            const url = outputUrls[i];
+            const img = document.createElement("img");
+            img.src = url;
+            img.alt = "Generated artwork";
+            gallery.appendChild(img);
+            if (driveAccessToken) {
+              await saveToDrive(url, i);
+            }
+          }
+          if (driveAccessToken) {
+            setStatus("Images saved to Google Drive.");
+          } else {
+            setStatus("Images created. Authorize Google Drive to save them.");
+          }
+        } catch (error) {
+          console.error(error);
+          setStatus("Something went wrong. Check the console for details.");
+        }
+      });
+
+      function setStatus(message) {
+        statusBox.textContent = message;
+      }
+
+      async function createPrediction(token, prompt) {
+        const response = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Token ${token}`,
+          },
+          body: JSON.stringify({
+            version: MODEL_VERSION,
+            input: { prompt },
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`Replicate error: ${err}`);
+        }
+        return response.json();
+      }
+
+      async function waitForPrediction(token, prediction) {
+        let status = prediction.status;
+        let urls = prediction.output;
+
+        while (status === "starting" || status === "processing" || status === "queued") {
+          await delay(1500);
+          const poll = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+            headers: { Authorization: `Token ${token}` },
+          });
+          if (!poll.ok) {
+            const err = await poll.text();
+            throw new Error(`Polling error: ${err}`);
+          }
+          const data = await poll.json();
+          status = data.status;
+          urls = data.output;
+          setStatus(`Prediction status: ${status}`);
+        }
+
+        if (status !== "succeeded") {
+          throw new Error(`Prediction finished with status ${status}`);
+        }
+        return Array.isArray(urls) ? urls : urls ? [urls] : [];
+      }
+
+      async function saveToDrive(url, index) {
+        if (!driveAccessToken) {
+          return;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error("Failed to download image from Replicate");
+        }
+        const blob = await response.blob();
+        const base64Data = await blobToBase64(blob);
+        const fileName = `flux_${Date.now()}_${index}.png`;
+        const folderId = driveFolderInput.value.trim();
+        const metadata = {
+          name: fileName,
+          mimeType: blob.type || "image/png",
+        };
+        if (folderId) {
+          metadata.parents = [folderId];
+        }
+        const boundary = "boundary" + Math.random().toString(16).slice(2);
+        const delimiter = `--${boundary}`;
+        const closeDelimiter = `--${boundary}--`;
+        const multipartBody = [
+          delimiter,
+          "Content-Type: application/json; charset=UTF-8",
+          "",
+          JSON.stringify(metadata),
+          delimiter,
+          `Content-Type: ${blob.type || "image/png"}`,
+          "Content-Transfer-Encoding: base64",
+          "",
+          base64Data.split(",")[1] || base64Data,
+          closeDelimiter,
+          "",
+        ].join("\r\n");
+
+        const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${driveAccessToken}`,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+          },
+          body: multipartBody,
+        });
+
+        if (!uploadResponse.ok) {
+          const err = await uploadResponse.text();
+          throw new Error(`Google Drive upload failed: ${err}`);
+        }
+      }
+
+      function delay(ms) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, ms);
+        });
+      }
+
+      function blobToBase64(blob) {
+        return new Promise(function (resolve, reject) {
+          const reader = new FileReader();
+          reader.onload = function () {
+            resolve(reader.result);
+          };
+          reader.onerror = function () {
+            reject(reader.error);
+          };
+          reader.readAsDataURL(blob);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
