@@ -333,11 +333,32 @@
     </section>
   </main>
 
-  <script src="config.js"></script>
+  <script type="application/json" id="app-config">
+    {
+      "replicateToken": "",
+      "googleClientId": ""
+    }
+  </script>
   <script>
     (function () {
       const PASSWORD = "Appertivo2025!";
-      const CONFIG = window.APP_CONFIG || { replicateToken: "", googleClientId: "" };
+
+      function loadConfig() {
+        const configNode = document.getElementById("app-config");
+        if (!configNode) {
+          return {};
+        }
+
+        try {
+          const parsed = JSON.parse(configNode.textContent || "{}");
+          return parsed && typeof parsed === "object" ? parsed : {};
+        } catch (error) {
+          console.warn("Unable to parse app configuration:", error);
+          return {};
+        }
+      }
+
+      const CONFIG = loadConfig();
       const REPLICATE_TOKEN = CONFIG.replicateToken || "";
       const GOOGLE_CLIENT_ID = CONFIG.googleClientId || "";
       const DRIVE_FOLDER_ID = "";
