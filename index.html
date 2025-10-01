@@ -339,28 +339,62 @@
       "googleClientId": ""
     }
   </script>
+  <script src="config.js" defer></script>
   <script>
-    (function () {
+    window.addEventListener("DOMContentLoaded", function () {
       const PASSWORD = "Appertivo2025!";
 
       function loadConfig() {
         const configNode = document.getElementById("app-config");
-        if (!configNode) {
-          return {};
+        let inlineConfig = {};
+
+        if (configNode) {
+          try {
+            const parsed = JSON.parse(configNode.textContent || "{}");
+            if (parsed && typeof parsed === "object") {
+              inlineConfig = parsed;
+            }
+          } catch (error) {
+            console.warn("Unable to parse app configuration:", error);
+          }
         }
 
-        try {
-          const parsed = JSON.parse(configNode.textContent || "{}");
-          return parsed && typeof parsed === "object" ? parsed : {};
-        } catch (error) {
-          console.warn("Unable to parse app configuration:", error);
-          return {};
+        const externalConfig =
+          window.APP_CONFIG && typeof window.APP_CONFIG === "object"
+            ? window.APP_CONFIG
+            : {};
+
+        const merged = { ...inlineConfig, ...externalConfig };
+
+        if (!merged.REPLICATE_API_KEY) {
+          merged.REPLICATE_API_KEY =
+            typeof merged.replicateToken === "string" ? merged.replicateToken : "";
+        } else if (!merged.replicateToken) {
+          merged.replicateToken = merged.REPLICATE_API_KEY;
         }
+
+        const googleOAuth = merged.GOOGLE_OAUTH;
+        if (!merged.googleClientId) {
+          if (googleOAuth && typeof googleOAuth === "object" && googleOAuth.clientId) {
+            merged.googleClientId = googleOAuth.clientId;
+          } else if (typeof googleOAuth === "string") {
+            merged.googleClientId = googleOAuth;
+            merged.GOOGLE_OAUTH = { clientId: googleOAuth };
+          }
+        } else if (!googleOAuth) {
+          merged.GOOGLE_OAUTH = { clientId: merged.googleClientId };
+        }
+
+        return merged;
       }
 
       const CONFIG = loadConfig();
-      const REPLICATE_TOKEN = CONFIG.replicateToken || "";
-      const GOOGLE_CLIENT_ID = CONFIG.googleClientId || "";
+      const REPLICATE_TOKEN =
+        CONFIG.replicateToken || CONFIG.REPLICATE_API_KEY || "";
+      const GOOGLE_CLIENT_ID =
+        CONFIG.googleClientId ||
+        (CONFIG.GOOGLE_OAUTH && CONFIG.GOOGLE_OAUTH.clientId) ||
+        "";
       const DRIVE_FOLDER_ID = "";
       const PROMPT_LIBRARY = [
         "Hyper-detailed digital painting of a neon-lit mech warrior emerging from ocean mist, volumetric lighting, cinematic",
@@ -686,7 +720,7 @@
           reader.readAsDataURL(blob);
         });
       }
-    })();
+    });
   </script>
 </body>
 </html>
